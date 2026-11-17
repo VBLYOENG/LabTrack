@@ -1,0 +1,195 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="mb-6">
+    <h1 class="text-2xl font-bold text-slate-900">Quản lý Mượn / Trả Dụng cụ Lab</h1>
+    <p class="text-sm text-slate-500 mt-1">Tra cứu thiết bị sẵn có trong kho và đăng ký mượn phục vụ nghiên cứu.</p>
+</div>
+
+<div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+    <!-- Cột trái: Member tạo phiếu mượn | Admin cập nhật thêm thiết bị -->
+    <div class="lg:col-span-4 bg-white p-6 rounded-2xl border border-slate-200/80 shadow-sm h-fit">
+        {% if current_user.role == 'admin' %}
+        <h2 class="font-bold text-slate-800 mb-4">🛠️ Cập nhật thiết bị vào kho</h2>
+        <form method="POST" action="{{ url_for('add_equipment') }}" class="space-y-4">
+            <div>
+                <label class="block text-xs font-bold text-slate-400 uppercase mb-1">Mã thiết bị (Tùy chọn)</label>
+                <input type="text" name="code" placeholder="VD: EQ-OSC-02"
+                       class="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-sm">
+            </div>
+            <div>
+                <label class="block text-xs font-bold text-slate-400 uppercase mb-1">Tên thiết bị</label>
+                <input type="text" name="name" required placeholder="VD: Máy hiện sóng Tektronix"
+                       class="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-sm">
+            </div>
+            <div>
+                <label class="block text-xs font-bold text-slate-400 uppercase mb-1">Số lượng hiện có</label>
+                <input type="number" name="total_qty" min="1" value="1" required
+                       class="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-sm">
+            </div>
+            <div>
+                <label class="block text-xs font-bold text-slate-400 uppercase mb-1">Tình trạng thiết bị</label>
+                <select name="status" class="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-sm">
+                    <option value="ready">Sẵn sàng</option>
+                    <option value="maintenance">Bảo trì</option>
+                </select>
+            </div>
+            <button type="submit" class="w-full py-3 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold rounded-xl shadow-sm">
+                Cập nhật
+            </button>
+        </form>
+        {% else %}
+        <h2 class="font-bold text-slate-800 mb-4">🔧 Tạo phiếu mượn thiết bị</h2>
+        <form method="POST" action="{{ url_for('borrow_equipment') }}" class="space-y-4">
+            <div>
+                <label class="block text-xs font-bold text-slate-400 uppercase mb-1">Chọn dụng cụ / thiết bị</label>
+                <select name="equipment_id" required class="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-sm">
+                    {% for eq in equipments if eq.status == 'ready' and eq.available_qty > 0 %}
+                    <option value="{{ eq.id }}">{{ eq.name }} (Còn {{ eq.available_qty }}/{{ eq.total_qty }})</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div>
+                <label class="block text-xs font-bold text-slate-400 uppercase mb-1">Số lượng mượn</label>
+                <input type="number" name="quantity" min="1" value="1" required
+                       class="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-sm">
+            </div>
+            <div>
+                <label class="block text-xs font-bold text-slate-400 uppercase mb-1">Ngày dự kiến trả</label>
+                <input type="date" name="due_date" required min="{{ today }}"
+                       class="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-sm">
+            </div>
+            <button type="submit" class="w-full py-3 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold rounded-xl shadow-sm">
+                Gửi Yêu Cầu Mượn
+            </button>
+        </form>
+        {% endif %}
+    </div>
+
+    <!-- Cột phải: Danh mục thiết bị + Danh sách phiếu mượn/trả -->
+    <div class="lg:col-span-8 space-y-6">
+        <!-- Danh mục thiết bị -->
+        <div class="bg-white p-6 rounded-2xl border border-slate-200/80 shadow-sm">
+            <h2 class="font-bold text-slate-800 mb-4">Danh mục Thiết bị trong Kho</h2>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {% for eq in equipments %}
+                <div class="p-4 rounded-2xl border border-slate-200/80 bg-slate-50/40">
+                    <div class="flex items-center justify-between mb-2">
+                        <span class="px-2 py-0.5 rounded bg-slate-200/70 text-[11px] font-bold text-slate-600">{{ eq.code }}</span>
+                        {% if eq.status == 'ready' %}
+                        <span class="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-600">Sẵn sàng</span>
+                        {% else %}
+                        <span class="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-rose-50 text-rose-600">Bảo trì</span>
+                        {% endif %}
+                    </div>
+                    <div class="font-bold text-sm text-slate-900">{{ eq.name }}</div>
+                    <div class="flex items-center justify-between mt-2">
+                        <span class="text-xs text-slate-500">Sẵn có: <strong class="text-slate-800">{{ eq.available_qty }}</strong> / {{ eq.total_qty }}</span>
+                        {% if current_user.role == 'admin' %}
+                        <button onclick="openEditEq({{ eq.id }}, '{{ eq.name }}', {{ eq.total_qty }}, '{{ eq.status }}')"
+                                class="text-xs font-semibold text-indigo-600 hover:underline">
+                            ✏️ Chỉnh sửa
+                        </button>
+                        {% endif %}
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+
+        <!-- Danh sách phiếu mượn / trả -->
+        <div class="bg-white p-6 rounded-2xl border border-slate-200/80 shadow-sm">
+            <h2 class="font-bold text-slate-800 mb-4">Danh sách Phiếu mượn / Trả</h2>
+            <div class="overflow-x-auto">
+                <table class="w-full text-left border-collapse">
+                    <thead>
+                        <tr class="bg-slate-50 text-[11px] font-bold text-slate-400 uppercase">
+                            <th class="py-3 px-4 rounded-l-xl">Người mượn</th>
+                            <th class="py-3 px-4">Thiết bị</th>
+                            <th class="py-3 px-4">Hạn trả</th>
+                            <th class="py-3 px-4">Trạng thái</th>
+                            <th class="py-3 px-4 rounded-r-xl">Thao tác</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-slate-100 text-sm">
+                        {% for b in borrows %}
+                        <tr>
+                            <td class="py-3.5 px-4 font-semibold text-slate-800">{{ b.full_name }}</td>
+                            <td class="py-3.5 px-4 text-slate-600">{{ b.equipment_name }} (x{{ b.quantity }})</td>
+                            <td class="py-3.5 px-4 font-semibold text-rose-500">{{ b.due_date }}</td>
+                            <td class="py-3.5 px-4">
+                                {% if b.display_status == 'pending' %}
+                                    <span class="px-2.5 py-1 rounded-full text-xs font-semibold bg-amber-50 text-amber-600">Chờ duyệt</span>
+                                {% elif b.display_status == 'borrowing' %}
+                                    <span class="px-2.5 py-1 rounded-full text-xs font-semibold bg-indigo-50 text-indigo-600">Đang mượn</span>
+                                {% elif b.display_status == 'overdue' %}
+                                    <span class="px-2.5 py-1 rounded-full text-xs font-semibold bg-rose-50 text-rose-600">Quá hạn</span>
+                                {% else %}
+                                    <span class="px-2.5 py-1 rounded-full text-xs font-semibold bg-slate-100 text-slate-500">Đã trả</span>
+                                {% endif %}
+                            </td>
+                            <td class="py-3.5 px-4">
+                                {% if current_user.role == 'admin' and b.display_status == 'pending' %}
+                                <form method="POST" action="{{ url_for('approve_borrow', borrow_id=b.id) }}">
+                                    <button type="submit" class="px-3 py-1 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold rounded-lg">
+                                        Duyệt
+                                    </button>
+                                </form>
+                                {% elif b.display_status in ['borrowing', 'overdue'] %}
+                                <form method="POST" action="{{ url_for('return_equipment', borrow_id=b.id) }}">
+                                    <button type="submit" class="px-3 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold rounded-lg">
+                                        Trả
+                                    </button>
+                                </form>
+                                {% else %}
+                                <span class="text-xs text-slate-300">—</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal Chỉnh sửa thiết bị (Admin) -->
+{% if current_user.role == 'admin' %}
+<div id="edit-eq-modal" class="hidden fixed inset-0 bg-slate-900/50 flex items-center justify-center z-50 p-4">
+    <div class="bg-white rounded-2xl max-w-md w-full p-6 shadow-xl">
+        <h3 id="edit-eq-title" class="text-lg font-bold text-slate-900 mb-4">Chỉnh sửa thiết bị</h3>
+        <form id="edit-eq-form" method="POST" class="space-y-4">
+            <div>
+                <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Số lượng tổng</label>
+                <input id="edit-eq-qty" type="number" name="total_qty" min="1" required
+                       class="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-sm">
+            </div>
+            <div>
+                <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Trạng thái</label>
+                <select id="edit-eq-status" name="status" class="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-sm">
+                    <option value="ready">Sẵn sàng</option>
+                    <option value="maintenance">Bảo trì</option>
+                </select>
+            </div>
+            <div class="flex justify-end gap-2 pt-2">
+                <button type="button" onclick="document.getElementById('edit-eq-modal').classList.add('hidden')"
+                        class="px-4 py-2 rounded-xl text-sm font-semibold text-slate-600 hover:bg-slate-100">Hủy</button>
+                <button type="submit" class="px-4 py-2 rounded-xl text-sm font-semibold bg-indigo-600 text-white hover:bg-indigo-700">
+                    Chỉnh sửa
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+function openEditEq(id, name, qty, status) {
+    document.getElementById('edit-eq-title').textContent = 'Chỉnh sửa: ' + name;
+    document.getElementById('edit-eq-qty').value = qty;
+    document.getElementById('edit-eq-status').value = status;
+    document.getElementById('edit-eq-form').action = '/equipment/edit/' + id;
+    document.getElementById('edit-eq-modal').classList.remove('hidden');
+}
+</script>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,120 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="mb-6">
+    <h1 class="text-2xl font-bold text-slate-900">Tổng quan hoạt động Lab</h1>
+    <p class="text-sm text-slate-500 mt-1">Xin chào {{ current_user.full_name }}, đây là tiến độ và công việc của bạn tuần này.</p>
+</div>
+
+<!-- 4 Thẻ thống kê -->
+<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5 mb-6">
+    <div class="bg-white p-5 rounded-2xl border border-slate-200/70 shadow-sm flex items-center gap-4">
+        <div class="w-12 h-12 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center text-xl">📅</div>
+        <div>
+            <div class="text-[11px] font-bold text-slate-400 uppercase">Ca làm việc tuần này</div>
+            <div class="text-xl font-bold text-slate-900 mt-0.5">{{ weekly_shifts_count }} ca</div>
+        </div>
+    </div>
+
+    <div class="bg-white p-5 rounded-2xl border border-slate-200/70 shadow-sm flex items-center gap-4">
+        <div class="w-12 h-12 rounded-xl bg-amber-50 text-amber-500 flex items-center justify-center text-xl">🕒</div>
+        <div>
+            <div class="text-[11px] font-bold text-slate-400 uppercase">Trực nhật sắp tới</div>
+            <div class="text-lg font-bold text-slate-900 mt-0.5">
+                {% if upcoming_duty %}
+                    {{ 'Hôm nay' if upcoming_duty.duty_date == today else upcoming_duty.duty_date.strftime('%d/%m') }}
+                    ({{ 'Sáng' if upcoming_duty.shift_type == 'morning' else 'Chiều' }})
+                {% else %}
+                    Không có lịch
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <div class="bg-white p-5 rounded-2xl border border-slate-200/70 shadow-sm flex items-center gap-4">
+        <div class="w-12 h-12 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center text-xl">📄</div>
+        <div>
+            <div class="text-[11px] font-bold text-slate-400 uppercase">Báo cáo tuần</div>
+            <div class="text-xl font-bold text-slate-900 mt-0.5">
+                {{ 'Đã nộp T' ~ current_week if current_report else 'Chưa nộp T' ~ current_week }}
+            </div>
+        </div>
+    </div>
+
+    <div class="bg-white p-5 rounded-2xl border border-slate-200/70 shadow-sm flex items-center gap-4">
+        <div class="w-12 h-12 rounded-xl bg-sky-50 text-sky-600 flex items-center justify-center text-xl">🔧</div>
+        <div>
+            <div class="text-[11px] font-bold text-slate-400 uppercase">Dụng cụ đang mượn</div>
+            <div class="text-xl font-bold text-slate-900 mt-0.5">{{ borrowed_items | length }} thiết bị</div>
+        </div>
+    </div>
+</div>
+
+<!-- 2 Khối chính -->
+<div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+    <!-- Phân công trực nhật -->
+    <div class="bg-white p-6 rounded-2xl border border-slate-200/70 shadow-sm">
+        <div class="flex items-center justify-between mb-4">
+            <h2 class="font-bold text-slate-800 flex items-center gap-2">✅ Phân công trực nhật hôm nay</h2>
+            <a href="{{ url_for('duty') }}" class="text-xs font-semibold text-indigo-600 hover:underline">Chi tiết &gt;</a>
+        </div>
+        {% if upcoming_duty and upcoming_duty.duty_date == today %}
+        <div class="p-4 rounded-xl bg-indigo-50/60 border border-indigo-100 flex items-center justify-between">
+            <div>
+                <span class="inline-block px-2.5 py-0.5 text-xs font-semibold bg-indigo-100 text-indigo-700 rounded-md mb-1.5">
+                    Ca {{ 'Sáng' if upcoming_duty.shift_type == 'morning' else 'Chiều' }}
+                </span>
+                <div class="font-semibold text-slate-900 text-sm">{{ upcoming_duty.task_desc }}</div>
+                <div class="text-xs text-slate-500 mt-0.5">Hạn nộp minh chứng: 17:00 Hôm nay</div>
+            </div>
+            <a href="{{ url_for('duty') }}" class="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold rounded-xl shadow-sm">
+                {{ 'Đã điểm danh' if upcoming_duty.proof_url else 'Điểm danh ngay' }}
+            </a>
+        </div>
+        {% else %}
+        <div class="p-6 text-center text-sm text-slate-400 bg-slate-50 rounded-xl">Hôm nay bạn không có ca trực nhật nào.</div>
+        {% endif %}
+    </div>
+
+    <!-- Thiết bị đang giữ -->
+    <div class="bg-white p-6 rounded-2xl border border-slate-200/70 shadow-sm">
+        <div class="flex items-center justify-between mb-4">
+            <h2 class="font-bold text-slate-800 flex items-center gap-2">🔧 Thiết bị đang giữ</h2>
+            <a href="{{ url_for('equipment') }}" class="text-xs font-semibold text-indigo-600 hover:underline">Tất cả &gt;</a>
+        </div>
+        <div class="space-y-3">
+            {% for item in borrowed_items %}
+            <div class="p-4 rounded-xl bg-slate-50 border border-slate-100 flex items-center justify-between">
+                <div>
+                    <div class="font-semibold text-sm text-slate-900">{{ item.equipment_name }}</div>
+                    <div class="text-xs text-slate-500 mt-0.5">
+                        Số lượng: {{ item.quantity }} | Hạn trả: <span class="text-rose-600 font-semibold">{{ item.due_date }}</span>
+                    </div>
+                </div>
+                <form method="POST" action="{{ url_for('return_equipment', borrow_id=item.id) }}">
+                    <button type="submit" class="px-3.5 py-1.5 bg-white border border-slate-200 hover:bg-slate-100 text-slate-700 text-xs font-semibold rounded-lg">
+                        Báo Trả
+                    </button>
+                </form>
+            </div>
+            {% else %}
+            <div class="p-6 text-center text-sm text-slate-400 bg-slate-50 rounded-xl">Bạn hiện không giữ thiết bị nào.</div>
+            {% endfor %}
+        </div>
+    </div>
+</div>
+
+<!-- Cập nhật thông báo hoạt động mới nhất ngay tại Tổng quan -->
+<div class="bg-white p-6 rounded-2xl border border-slate-200/70 shadow-sm">
+    <h2 class="font-bold text-slate-800 mb-3">🔔 Nhật ký thông báo hoạt động mới nhất</h2>
+    <div class="divide-y divide-slate-100">
+        {% for n in notifications %}
+        <div class="py-2.5 flex items-center justify-between text-sm">
+            <span class="text-slate-700">{{ n.message }}</span>
+            <span class="text-xs text-slate-400">{{ n.created_at.strftime('%H:%M %d/%m/%Y') }}</span>
+        </div>
+        {% else %}
+        <div class="py-4 text-center text-sm text-slate-400">Chưa có hoạt động nào được ghi nhận.</div>
+        {% endfor %}
+    </div>
+</div>
+{% endblock %}

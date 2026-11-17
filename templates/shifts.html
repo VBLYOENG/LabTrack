@@ -1,0 +1,111 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="flex items-center justify-between mb-6">
+    <div>
+        <h1 class="text-2xl font-bold text-slate-900">Đăng ký ca làm việc tại Lab</h1>
+        <p class="text-sm text-slate-500 mt-1">Chọn ca làm việc phù hợp (Sáng: 07:00 - 11:45 | Chiều: 13:00 - 16:50) để đảm bảo sức chứa tối đa.</p>
+    </div>
+    <span class="px-4 py-1.5 rounded-full bg-indigo-50 text-indigo-700 text-xs font-bold border border-indigo-100">
+        Tuần {{ week_num }} ({{ start_week }} - {{ end_week }})
+    </span>
+</div>
+
+<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+    {% for s in shift_cards %}
+    <div id="card-{{ s.date_str }}-{{ s.shift_type }}"
+         class="bg-white p-5 rounded-2xl border transition {{ 'border-indigo-500 ring-1 ring-indigo-500/20' if s.is_registered else 'border-slate-200/80' }} shadow-sm">
+        <div class="flex items-center justify-between mb-3">
+            <span class="px-2.5 py-1 rounded-md bg-slate-100 text-slate-700 text-xs font-semibold">
+                {{ s.day_name }} - {{ s.date_str }}
+            </span>
+            <span id="badge-{{ s.date_str }}-{{ s.shift_type }}"
+                  class="px-2.5 py-0.5 rounded-md text-xs font-bold {{ 'bg-rose-50 text-rose-600' if s.is_full else 'bg-emerald-50 text-emerald-600' }}">
+                {{ 'Đã đầy' if s.is_full else 'Còn ' ~ (s.max - s.count) ~ ' chỗ' }}
+            </span>
+        </div>
+
+        <h3 class="text-lg font-bold text-slate-900 mb-3">{{ s.label }} ({{ s.time_range }})</h3>
+
+        <div class="flex items-center justify-between text-xs text-slate-500 mb-1.5">
+            <span>Sức chứa ca</span>
+            <span id="count-{{ s.date_str }}-{{ s.shift_type }}" class="font-bold text-slate-800">{{ s.count }} / {{ s.max }} người</span>
+        </div>
+
+<div class="w-full h-2 bg-slate-100 rounded-full overflow-hidden mb-5">
+    <div id="bar-{{ s.date_str }}-{{ s.shift_type }}"
+         data-width="{{ (s.count / s.max * 100) | int }}"
+         class="shift-bar h-full transition-all {{ 'bg-rose-500' if s.is_full else ('bg-indigo-600' if s.is_registered else 'bg-emerald-500') }}"></div>
+</div>
+
+        <button id="btn-{{ s.date_str }}-{{ s.shift_type }}"
+                onclick="toggleShift('{{ s.date_str }}', '{{ s.shift_type }}')"
+                {% if s.is_full and not s.is_registered %}disabled{% endif %}
+                class="w-full py-2.5 rounded-xl text-sm font-semibold transition
+                {% if s.is_registered %}
+                    bg-rose-50 text-rose-600 border border-rose-200 hover:bg-rose-100
+                {% elif s.is_full %}
+                    bg-slate-100 text-slate-400 cursor-not-allowed
+                {% else %}
+                    bg-indigo-600 text-white hover:bg-indigo-700
+                {% endif %}">
+            {% if s.is_registered %}
+                Hủy đăng ký ca này
+            {% elif s.is_full %}
+                Ca đã đầy
+            {% else %}
+                Đăng ký ca làm việc
+            {% endif %}
+        </button>
+    </div>
+    {% endfor %}
+</div>
+
+<script>
+async function toggleShift(shiftDate, shiftType) {
+    const res = await fetch('/api/shifts/toggle', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ shift_date: shiftDate, shift_type: shiftType })
+    });
+    const data = await res.json();
+    const key = `${shiftDate}-${shiftType}`;
+    const card = document.getElementById(`card-${key}`);
+    const badge = document.getElementById(`badge-${key}`);
+    const countEl = document.getElementById(`count-${key}`);
+    const bar = document.getElementById(`bar-${key}`);
+    const btn = document.getElementById(`btn-${key}`);
+
+    const count = data.count;
+    const max = data.max;
+    const isFull = count >= max;
+    const isReg = data.action === 'registered';
+
+    countEl.textContent = `${count} / ${max} người`;
+    bar.style.width = `${Math.round(count / max * 100)}%`;
+
+    badge.textContent = isFull ? 'Đã đầy' : `Còn ${max - count} chỗ`;
+    badge.className = `px-2.5 py-0.5 rounded-md text-xs font-bold ${isFull ? 'bg-rose-50 text-rose-600' : 'bg-emerald-50 text-emerald-600'}`;
+
+    if (isReg) {
+        card.classList.add('border-indigo-500', 'ring-1', 'ring-indigo-500/20');
+        btn.disabled = false;
+        btn.textContent = 'Hủy đăng ký ca này';
+        btn.className = 'w-full py-2.5 rounded-xl text-sm font-semibold transition bg-rose-50 text-rose-600 border border-rose-200 hover:bg-rose-100';
+        bar.className = 'h-full transition-all bg-indigo-600';
+    } else {
+        card.classList.remove('border-indigo-500', 'ring-1', 'ring-indigo-500/20');
+        if (isFull) {
+            btn.disabled = true;
+            btn.textContent = 'Ca đã đầy';
+            btn.className = 'w-full py-2.5 rounded-xl text-sm font-semibold transition bg-slate-100 text-slate-400 cursor-not-allowed';
+            bar.className = 'h-full transition-all bg-rose-500';
+        } else {
+            btn.disabled = false;
+            btn.textContent = 'Đăng ký ca làm việc';
+            btn.className = 'w-full py-2.5 rounded-xl text-sm font-semibold transition bg-indigo-600 text-white hover:bg-indigo-700';
+            bar.className = 'h-full transition-all bg-emerald-500';
+        }
+    }
+}
+</script>
+{% endblock %}
